@@ -4,17 +4,37 @@ import styled from 'styled-components';
 import DataTable from './DataTable';
 
 import {
+  headersValidation,
+  fullNameValidation,
+  phoneValidation,
+  emailValidation,
+  ageValidation,
+  experienceValidation,
+  incomeValidation,
+  hasChildrenValidation,
+  licenseStatesValidation,
+  expirationDateValidation,
+  licenseNumberValidation,
+  duplicateValidation
+} from './validation-functions'
+
+import {
   patternFileExtension,
   patternLinesSeparator,
-  patternRowSeparator,
-  patternFullName,
-  patternPhone,
-  patternLicense,
-  patternLicenseStates,
-  patternFirstDateType,
-  patternSecondDateType,
+  patternRowSeparator
 } from "./regex";
-import {HEADERS, USA_STATES} from "./utils";
+
+import {HEADERS} from "./utils";
+
+const Error = styled.div`
+  color: #ba3939;
+  background: #ffe0e0;
+  border: 1px solid #a33a3a;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 20px;
+`;
+
 
 const Input = styled.input`
   width: 0.1px;
@@ -49,129 +69,6 @@ function App() {
   const [headers, setHeaders] = useState([]);
   const [data, setData] = useState([]);
   const [fileError, setFileError] = useState(false);
-
-
-  const headersValidation = headers => {
-    if (headers.length !== HEADERS.length) {
-      return false;
-    }
-
-    return headers
-        .every((header, index) => {
-          const preparedHeader = header.trim();
-          const patternHeader = new RegExp(preparedHeader, "i");
-
-          return patternHeader.test(HEADERS[index]);
-        })
-  };
-
-  const fullNameValidation = fullName => patternFullName.test(fullName);
-
-  const phoneValidation = phone => patternPhone.test(phone);
-
-  const ageValidation = age => age === '' ? true :
-      age.length === 2
-      && Number(age)
-      && Number(age) >= 21;
-
-  const experienceValidation = (experience, age = 21) => experience === '' ? true :
-      experience.length === 2
-      && Number(experience)
-      && Number(experience) >= 0
-      && Number(age ? age : 21) - Number(experience) >= 18;
-
-  const incomeValidation = income => income === '' ? true :
-      income.length <= 12
-      && Number(income)
-      && Number(income) >= 0
-      && Number(income) <= 1000000;
-
-  const hasChildrenValidation = hasChildren =>
-      ['TRUE', 'FALSE'].some( value => value === hasChildren);
-
-  const licenseStatesValidation = states => {
-    if (!patternLicenseStates.test(states)) {
-      return {
-        errorState: !(states === ''),
-        preparedStates: states,
-      }
-    }
-
-    let errorState = false;
-    const preparedStates = states
-        .split(', ')
-        .map( state => {
-          if (state.length === 2) {
-            const isValidState = USA_STATES
-                .some( existingState =>
-                    state.toUpperCase() === existingState.abbreviation );
-
-            errorState = !isValidState;
-            return isValidState ? state.toUpperCase() : state;
-          } else if (state.length > 2) {
-            const validStateObj = USA_STATES
-                .find( existingState => {
-                  return state === existingState.name
-                } );
-
-            errorState = !Boolean(validStateObj);
-            return errorState ? state : validStateObj.abbreviation;
-          } else {
-            errorState = state;
-            return state;
-          }
-        })
-        .join(', ');
-
-    return {
-      errorState,
-      preparedStates
-    }
-  }
-
-  const expirationDateValidation = date => {
-    if (date === '') return true;
-
-    if (!patternFirstDateType.test(date) && !patternSecondDateType.test(date))
-      return false;
-
-    const now = new Date();
-    const nowDay = now.getDate();
-    const nowMonth = now.getMonth();
-    const nowYear = now.getFullYear();
-
-    let parts, day, month, year;
-    if(patternFirstDateType.test(date)){
-      parts = date.split("/");
-      day = parseInt(parts[1], 10);
-      month = parseInt(parts[0], 10);
-      year = parseInt(parts[2], 10);
-    }
-
-    if(patternSecondDateType.test(date)){
-      parts = date.split("-");
-      day = parseInt(parts[2], 10);
-      month = parseInt(parts[1], 10);
-      year = parseInt(parts[0], 10);
-    }
-
-    const monthLength = [ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ];
-
-    if(year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0))
-      monthLength[1] = 29;
-
-    return year >= nowYear
-        && year < 3000
-        && month >= 0
-        && month < 12
-        && day > 0
-        && day <= monthLength[month - 1]
-        && (year === nowYear ? month >= nowMonth : true)
-        && (year === nowYear && month === nowMonth ? date >= nowDay : true);
-  }
-
-  const licenseNumberValidation = license =>
-      license === '' ? true : patternLicense.test(license);
 
 
   const processData = data => {
@@ -228,6 +125,9 @@ function App() {
                 cellValue : `+1${cellValue.slice(-10)}`;
             break;
           case 'Email':
+            cellError = !emailValidation(cellValue);
+            cellValue = cellError ?
+                cellValue : cellValue.toLowerCase();
             break;
           case 'Age':
             cellError = !ageValidation(cellValue);
@@ -272,8 +172,8 @@ function App() {
         rows.push(rowsData);
       }
     }
-    console.log(rows)
-    setData(rows);
+
+    setData(duplicateValidation(rows));
     setHeaders(headers);
   }
 
@@ -310,7 +210,34 @@ function App() {
         </Label>
 
         { fileError ?
-            <p>Error</p> :
+            <Error>
+              <h4>Error</h4>
+              Please check:
+              <ul>
+                <li>File extension.</li>
+                <li>
+                  Correctness and sequence of writing table heads.<br/>
+                  Here's what we expect:
+                  <ul>
+                    <li>"Full Name"</li>
+                    <li>"Phone"</li>
+                    <li>"Email"</li>
+                    <li>"Age"</li>
+                    <li>"Experience"</li>
+                    <li>"Yearly Income"</li>
+                    <li>"Has children"</li>
+                    <li>"License states"</li>
+                    <li>"Expiration date"</li>
+                    <li>"License number"</li>
+                  </ul>
+                  Don't add "ID" or "Duplicate with". We make it automatically.
+                </li>
+                <li>
+                  The fullness of all the cells in the columns "Full name", "Phone", "Email".
+                  They are required.
+                </li>
+              </ul>
+            </Error> :
             <DataTable
                 headers={headers}
                 data={data}
