@@ -10,6 +10,7 @@ const Table = styled.table`
 `;
 
 const TableCell = styled.td`
+  text-align: center;
   border: 1px solid #ddd;
   padding: 8px;
 `;

@@ -9,8 +9,12 @@ import {
   patternRowSeparator,
   patternFullName,
   patternPhone,
+  patternLicense,
+  patternLicenseStates,
+  patternFirstDateType,
+  patternSecondDateType,
 } from "./regex";
-import { HEADERS } from "./utils";
+import {HEADERS, USA_STATES} from "./utils";
 
 const Input = styled.input`
   width: 0.1px;
@@ -65,23 +69,109 @@ function App() {
 
   const phoneValidation = phone => patternPhone.test(phone);
 
-  const ageValidation = (age = 21) =>
-      age.length === 2 && Number(age) && Number(age) >= 21;
+  const ageValidation = age => age === '' ? true :
+      age.length === 2
+      && Number(age)
+      && Number(age) >= 21;
 
-  const experienceValidation = (experience = 0, age = 21) =>
+  const experienceValidation = (experience, age = 21) => experience === '' ? true :
       experience.length === 2
       && Number(experience)
       && Number(experience) >= 0
       && Number(age ? age : 21) - Number(experience) >= 18;
 
-  const incomeValidation = (income = 0) =>
+  const incomeValidation = income => income === '' ? true :
       income.length <= 12
       && Number(income)
       && Number(income) >= 0
       && Number(income) <= 1000000;
 
-  const hasChildrenValidation = (hasChildren) =>
+  const hasChildrenValidation = hasChildren =>
       ['TRUE', 'FALSE'].some( value => value === hasChildren);
+
+  const licenseStatesValidation = states => {
+    if (!patternLicenseStates.test(states)) {
+      return {
+        errorState: !(states === ''),
+        preparedStates: states,
+      }
+    }
+
+    let errorState = false;
+    const preparedStates = states
+        .split(', ')
+        .map( state => {
+          if (state.length === 2) {
+            const isValidState = USA_STATES
+                .some( existingState =>
+                    state.toUpperCase() === existingState.abbreviation );
+
+            errorState = !isValidState;
+            return isValidState ? state.toUpperCase() : state;
+          } else if (state.length > 2) {
+            const validStateObj = USA_STATES
+                .find( existingState => {
+                  return state === existingState.name
+                } );
+
+            errorState = !Boolean(validStateObj);
+            return errorState ? state : validStateObj.abbreviation;
+          } else {
+            errorState = state;
+            return state;
+          }
+        })
+        .join(', ');
+
+    return {
+      errorState,
+      preparedStates
+    }
+  }
+
+  const expirationDateValidation = date => {
+    if (date === '') return true;
+
+    if (!patternFirstDateType.test(date) && !patternSecondDateType.test(date))
+      return false;
+
+    const now = new Date();
+    const nowDay = now.getDate();
+    const nowMonth = now.getMonth();
+    const nowYear = now.getFullYear();
+
+    let parts, day, month, year;
+    if(patternFirstDateType.test(date)){
+      parts = date.split("/");
+      day = parseInt(parts[1], 10);
+      month = parseInt(parts[0], 10);
+      year = parseInt(parts[2], 10);
+    }
+
+    if(patternSecondDateType.test(date)){
+      parts = date.split("-");
+      day = parseInt(parts[2], 10);
+      month = parseInt(parts[1], 10);
+      year = parseInt(parts[0], 10);
+    }
+
+    const monthLength = [ 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ];
+
+    if(year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0))
+      monthLength[1] = 29;
+
+    return year >= nowYear
+        && year < 3000
+        && month >= 0
+        && month < 12
+        && day > 0
+        && day <= monthLength[month - 1]
+        && (year === nowYear ? month >= nowMonth : true)
+        && (year === nowYear && month === nowMonth ? date >= nowDay : true);
+  }
+
+  const licenseNumberValidation = license =>
+      license === '' ? true : patternLicense.test(license);
 
 
   const processData = data => {
@@ -98,7 +188,7 @@ function App() {
     headers = [
       "ID",
       ...HEADERS,
-      "Duplicate",
+      "Duplicate with",
     ];
 
     const rows = [];
@@ -141,12 +231,12 @@ function App() {
             break;
           case 'Age':
             cellError = !ageValidation(cellValue);
-            cellValue = cellError ?
+            cellValue = cellError || cellValue === '' ?
                 cellValue : Number(cellValue);
             break;
           case 'Experience':
             cellError = !experienceValidation(cellValue, Number(row[j-1]));
-            cellValue = cellError ?
+            cellValue = cellError || cellValue === '' ?
                 cellValue : Number(cellValue);
             break;
           case 'Yearly Income':
@@ -159,10 +249,15 @@ function App() {
             cellError = !hasChildrenValidation(cellValue);
             break;
           case 'License states':
+            const { errorState, preparedStates } = licenseStatesValidation(cellValue)
+            cellError = errorState;
+            cellValue = preparedStates;
             break;
           case 'Expiration date':
+            cellError = !expirationDateValidation(cellValue);
             break;
           case 'License number':
+            cellError = !licenseNumberValidation(cellValue);
             break;
           default:
             break;
